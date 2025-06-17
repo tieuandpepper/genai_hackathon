@@ -1,16 +1,15 @@
 # ASU Spec2Tapeout ICLAD 2025 Hackathon Problems
 
-## Infrastrcutre setup
-
+## Infrastructure setup
 
 If you are participating in the SLM category: 
 The prerequisites are iVerilog and OpenROAD-flow-scripts that should be available on your laptops.
 
 If you are participating in the LLM category:
-Solving these problems requires the docker image available here which you can pull in your GCP VM instance. 
+Solving these problems requires the Docker image available here, which you can pull in your GCP VM instance. 
 
 ```
-docker pull
+docker pull <image_name>
 ```
 
 ## Problem Set
@@ -38,7 +37,7 @@ Your objective is to design tapeout-ready ASICs based on the given problem speci
 - You must generate your own **testbenches** to validate RTL functionality (use of LLMs allowed). We have our own testbenches that we will use to evalute your RTL.  
 - Once your RTL is verified, use **OpenROAD-flow-scripts** to generate the tapeout-ready GDSII and other physical design files and reports.  
 - You can use LLMs to learn how to work with ORFS and use the LLM to write a script to integrate your design into the existing ORFS framework.  
-- The provided constraints or specification  of frequency are **relatively relaxed** and should be met without requiring multiple iterations of physical design.  
+- The provided constraints or specifications of frequency are relatively relaxed and should be met without requiring multiple iterations of physical design.  
 
 ---
 
