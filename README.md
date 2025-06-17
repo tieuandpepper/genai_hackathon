@@ -3,12 +3,15 @@
 ## Infrastrcutre setup
 
 
-If you are participating in the SLM cateogory: 
-The prerequisites are iVerilog and OpenROAD-flow-scripts that should be avialbale in your laptops.
+If you are participating in the SLM category: 
+The prerequisites are iVerilog and OpenROAD-flow-scripts that should be available on your laptops.
 
 If you are participating in the LLM category:
 Solving these problems requires the docker image available here which you can pull in your GCP VM instance. 
 
+```
+docker pull
+```
 
 ## Problem Set
 
