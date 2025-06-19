@@ -3,7 +3,7 @@
 ## Infrastructure setup
 
 If you are participating in the SLM category: 
-The prerequisites are iVerilog and OpenROAD-flow-scripts that should be available on your laptops.
+The prerequisites are iVerilog and OpenROAD-flow-scripts that should be available on your laptops. For SLM problems, you will not be evaluated on hidden testcases!
 
 If you are participating in the LLM category:
 Solving these problems requires the Docker image available here, which you can pull in your GCP VM instance. 
