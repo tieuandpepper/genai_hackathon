@@ -4,6 +4,11 @@ from vertexai.preview.generative_models import GenerativeModel
 import vertexai
 import time
 
+# EXAMPLE or VISIBLE PROBLEM (example problem in the example_problem folder, visible problem in the problems/visible directory)
+PROBLEM_TYPE_EXAMPLE = 1
+PROBLEM_TYPE_VISIBLE = 2
+PROBLEM_TYPE = PROBLEM_TYPE_EXAMPLE
+
 MAX_ITER = 10
 
 PDK_MAP = {
@@ -29,10 +34,15 @@ PDK_MAP = {
     }
 }
 
+##############################################################
+# HELPER FUNCTIONS
+##############################################################
+
 def write_file(filename, content):
     with open(filename, 'w') as f:
         f.write(content)
 
+###################################
 def run_iverilog(filenames):
     try:
         subprocess.run(["iverilog", *filenames], check=True, capture_output=True)
@@ -40,6 +50,10 @@ def run_iverilog(filenames):
     except subprocess.CalledProcessError as e:
         return False, e.stderr.decode()
 
+
+##############################################################
+# AGENT FUNCTIONS
+##############################################################
 def prompt_from_yaml(spec):
     name, content = list(spec.items())[0]
     description = content.get("description", "")
@@ -82,6 +96,9 @@ Important:
     write_file("current_design.txt", prompt)
     return name, content.get("clock_period", 1.0), content
 
+
+###################################
+
 def generate_sdc(top_module, clock_period):
     sdc = f"""current_design {top_module}
 
@@ -101,6 +118,8 @@ set_output_delay [expr $clk_period * $clk_io_pct] -clock $clk_name [all_outputs]
 """
     write_file("constraint.sdc", sdc)
 
+###################################
+
 def refine_with_gemini(prompt, model, top_module):
     design_file = f"iclad_{top_module}.v"
     for _ in range(MAX_ITER):
@@ -112,6 +131,8 @@ def refine_with_gemini(prompt, model, top_module):
             return response
         prompt = f"The following Verilog has syntax errors:\n{err}\nPlease fix them:\n{response}"
     return None
+
+###################################
 
 def run_openroad_flow(top_module, design_file):
     tech_node = yaml.safe_load(open("spec.yaml"))[top_module].get("tech_node")
@@ -147,6 +168,10 @@ write_db {top_module}.odb
     write_file("run_openroad.tcl", tcl_script)
     print("\n🚀 Launching OpenROAD...")
     subprocess.run(["openroad", "run_openroad.tcl"])
+
+
+
+###################################
 
 def verify_functionality(content, top_module, model):
     tb_file = f"{top_module}_tb.v"
@@ -185,11 +210,11 @@ def verify_functionality(content, top_module, model):
             model.generate_content(tb_prompt_fix)
     return False
 
-def main():
-    vertexai.init(project="iclad-hack25stan-3721", location="us-central1")
-    model = GenerativeModel("gemini-2.0-flash-001")
+##############################################################
+# MAIN FUNCTION
+##############################################################
 
-    spec = yaml.safe_load(open("spec.yaml"))
+def run_agent(model,spec):
     top_module, clock_period, content = prompt_from_yaml(spec)
     generate_sdc(top_module, float(clock_period))
 
@@ -199,6 +224,16 @@ def main():
 
     print("\n🧪 Running functionality test...")
     verify_functionality(content, top_module, model)
+
+
+def main():
+    vertexai.init(project="iclad-hack25stan-3721", location="us-central1")
+    model = GenerativeModel("gemini-2.0-flash-001")
+
+    spec = yaml.safe_load(open("spec.yaml"))
+    
+    run_agent(model,spec)
+    
 
 if __name__ == "__main__":
     main()
