@@ -230,7 +230,7 @@ def main():
     vertexai.init(project="iclad-hack25stan-3721", location="us-central1")
     model = GenerativeModel("gemini-2.0-flash-001")
 
-    spec = yaml.safe_load(open("spec.yaml"))
+    spec = yaml.safe_load(open("p1.yaml"))
     
     run_agent(model,spec)
     
