@@ -1,142 +1,99 @@
 """Agent definition that generates a testbench."""
-
 import constants
 from vertexai.preview.generative_models import GenerativeModel
 import vertexai
 import subprocess
-import os, re
 import tempfile
-
-# from openai import OpenAI
-
-GEMINI = "GEMINI"
-# OPENAI = "OPENAI"
-MODEL = GEMINI
-
-
-MODULE_COUNT = 31
-# helper function
-
-if MODEL == GEMINI:
-    # query gemini
+import re
+import re
+def extract_module_name(verilog_text: str) -> str:
+    match = re.search(r'\bmodule\s+(\w+)\s*\(', verilog_text)
+    return match.group(1) if match else ""
+MAX_RETRIES = 20
+def extract_ports(verilog_text: str):
+    ports = []
+    # Match input/output/inout declarations like: input [3:0] foo;
+    port_decl_pattern = re.compile(r'\b(input|output|inout)\b\s*(\[[^\]]+\])?\s*(\w+)\s*;')
+    for match in port_decl_pattern.finditer(verilog_text):
+        direction, width, name = match.groups()
+        width = width.strip() if width else ""
+        ports.append({
+            "direction": direction,
+            "name": name,
+            "width": width,
+        })
+    return ports
+def generate_testbench(file_name_to_content: dict[str, str]) -> str:
+    # Step 1: Get the content of specification.md
     vertexai.init(project="iclad-hack25stan-3721", location="us-central1")
     model = GenerativeModel("gemini-2.0-flash-001")
-# else:
-    # token = os.getenv("OPENAI_API_KEY")
-    # model = OpenAI(api_key=token)
-
-
-def query_model(query):
-    if MODEL == GEMINI:
-        return model.generate_content(query).text
-    else:
-        return model.chat.completions.create(
-            model='gpt-4o',
-            messages=[
-                    {
-                        "role": "user",
-                        "content": query,
-                    }
-            ]
-        ).choices[0].message.content
-
-# generate testbench from specs and verilog code
-def generate_tb(specs, verilog_code):
-    prompt = f"""
-Generate a testbench based on this description:
-{specs}
-and this Verilog implmentation:
-{verilog_code}
-
-The testbench should be enclosed in a code block (start with ``` and end with ```).
+    spec = file_name_to_content.get("specification.md")
+    ports = extract_ports(file_name_to_content.get("mutant_0.v"))
+    module = extract_module_name(file_name_to_content.get("mutant_0.v"))
+    if not ports or not module:
+        print("Failed to extract ports or module name from mutant_0.v")
+        return constants.DUMMY_TESTBENCH
+    if spec is None:
+        print("specification.md not found")
+        return constants.DUMMY_TESTBENCH
+    print("Current module:", module)
+    # Step 2: Construct the prompt for the LLM
+    prompt_template = f"""You are a SystemVerilog expert. Please generate a valid and synthesizable SystemVerilog testbench for the following module.
+Make sure the testbench:
+- Testbench module name is `tb`
+- Do not use any parameters and localparam in the testbench
+- Instantiates the DUT (Design Under Verification) correctly with all ports
+- Declares all required signals with the correct directions and bit widths
+- Applies meaningful test vectors based on the module's behavior
+- Uses `$error(...)` to report incorrect behavior and terminate the simulation early
+- Prints `$display("TESTS PASSED");` followed by `$finish;` **only if all checks pass**
+DUT Module Name:
+----------------
+{module}
+----------------
+DUT Module Ports:
+----------------
+{ports}
+DUT Specification:
+----------------
+{spec}
+----------------
+Return only the testbench code inside a ```systemverilog``` code block.
 """
-    count = 0
-    while count < 10:
-        output = query_model(prompt)
-        # find all the strings that start with ``` and end with ``` for final_output string
-        matches = re.findall(r'```verilog(.*?)```', output, flags=re.DOTALL)
-        if matches:
-            # get the last match
-            testbench = matches[-1].strip("\n")
-            return testbench
-        else:
-            matches = re.findall(r'```(.*?)```', output, flags=re.DOTALL)
-            # prompt += "Remember to include the code block.\n"
-            if matches:
-            # get the last match
-                testbench = matches[-1].strip("\n")
-                return testbench
-            count+=1
-    return ""
-
-
-def run_tb(verilog_testbench, verilog_module):
-    with tempfile.TemporaryDirectory() as temp_dir:
-        module_path = os.path.join(temp_dir, "temp_module.v")
-        tb_path = os.path.join(temp_dir, "temp_tb.v")
-        output_path = os.path.join(temp_dir, "temp_test")
-
-        # Write module and testbench to files
-        with open(module_path, "w") as f:
-            f.write(verilog_module)
-        with open(tb_path, "w") as f:
-            f.write(verilog_testbench)
-
-        # Compile Verilog files
-        compile = subprocess.run(["iverilog", "-o", output_path, module_path, tb_path],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-        if compile.returncode != 0:
-            print("Error:\n", compile.stderr)
-        else:
-            # Run simulation
-            run = subprocess.run(["vvp", output_path],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            if run.returncode != 0:
-                print("Simulation Error:\n", run.stderr)
-                return 0
-            else:
-                print("Simulation Output:\n", run.stdout)
-                return 1
-        return 0
-
-# TODO: Implement this.
-def generate_testbench(file_name_to_content: dict[str, str]) -> str:
-    # del file_name_to_content
-    # for key,value in file_name_to_content.items():
-    #     print(key)
-    spec_file_name = "specification.md"
-    mutant_file_start = "mutant_"
-    testbench_file_name = "tb.v"
-    testbench = "Giving up is not an option, but a reality."
-    specs = file_name_to_content[spec_file_name]
-    mutant_idx = 0
-    # Go through 31 modules
-    for mutant_idx in range(0, MODULE_COUNT):
-        verilog_module = file_name_to_content[mutant_file_start + str(mutant_idx) + ".v"]
-        temp_testbench = generate_tb(specs,verilog_module)
-        print(temp_testbench)
-        passed_tb = 0
-        failed_tb = 0
-        for i in range(0,MODULE_COUNT):
-            test_module = file_name_to_content[mutant_file_start + str(i) + ".v"]
-            result = run_tb(temp_testbench,test_module)
-            if result == 1:
-                print(f"mutant_{i} passed generated testbench for {mutant_idx}")
-            
-            failed_tb -= result
-            passed_tb += result
-        
-        print(f"testbench for mutant_{mutant_idx} passed {passed_tb} test modules.")
-        if passed_tb == MODULE_COUNT - 1:
-            testbench = temp_testbench
-            break
-        if failed_tb > 1:
+    # Step 3: Try generating and verifying the testbench up to MAX_RETRIES times
+    for attempt in range(1, MAX_RETRIES + 1):
+        print(f"[Attempt {attempt}] Generating testbench")
+        try:
+            response_text = model.generate_content(prompt_template).text
+        except Exception as e:
+            print(f"LLM call failed: {e}")
+            return constants.DUMMY_TESTBENCH
+        # Step 4: Extract the systemverilog code block
+        match = re.search(r"```systemverilog\s+(.*?)```", response_text, re.DOTALL)
+        if not match:
+            print("No valid SystemVerilog code block found")
             continue
-
-
-    # return constants.DUMMY_TESTBENCH
-    return testbench
-
-
-# print(query_model("How openROAD is used without Verilog"))
+        testbench_code = match.group(1).strip()
+        # Step 5: Write code to a temp file and check it using iverilog
+        with tempfile.NamedTemporaryFile(suffix=".sv", mode="w", delete=False) as f:
+            f.write(testbench_code)
+            tmp_path = f.name
+        with tempfile.NamedTemporaryFile(suffix=".v", mode="w", delete=False) as f:
+            f.write(file_name_to_content.get("mutant_0.v"))
+            tmp_dut_path = f.name
+        # Step 6: Use iverilog to compile and check for syntax errors
+        compile_result = subprocess.run(
+            ["iverilog", "-g2012", tmp_path, tmp_dut_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        if compile_result.returncode == 0:
+            print("Testbench passed syntax check")
+            return testbench_code
+        else:
+            print("Syntax error detected:")
+            print(compile_result.stderr)
+    # Step 7: Fallback if all attempts fail
+    print("Exceeded maximum attempts, returning default testbench")
+    return constants.DUMMY_TESTBENCH
