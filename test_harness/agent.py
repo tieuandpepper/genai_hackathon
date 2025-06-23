@@ -127,7 +127,7 @@ def generate_testbench(file_name_to_content: dict[str, str]) -> str:
             failed_tb -= result
             passed_tb += result
         
-        print("testbench for mutant_{mutant_idx} passed {pass_tb} test modules.")
+        print(f"testbench for mutant_{mutant_idx} passed {passed_tb} test modules.")
         if passed_tb == MODULE_COUNT - 1:
             testbench = temp_testbench
             break
