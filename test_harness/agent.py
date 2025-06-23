@@ -115,7 +115,7 @@ def generate_testbench(file_name_to_content: dict[str, str]) -> str:
     for mutant_idx in range(0, MODULE_COUNT):
         verilog_module = file_name_to_content[mutant_file_start + str(mutant_idx) + ".v"]
         temp_testbench = generate_tb(specs,verilog_module)
-        # print(temp_testbench)
+        print(temp_testbench)
         passed_tb = 0
         failed_tb = 0
         for i in range(0,MODULE_COUNT):
