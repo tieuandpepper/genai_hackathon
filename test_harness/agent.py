@@ -5,7 +5,7 @@ import vertexai
 import subprocess
 import tempfile
 import re
-import re
+import os
 def extract_module_name(verilog_text: str) -> str:
     match = re.search(r'\bmodule\s+(\w+)\s*\(', verilog_text)
     return match.group(1) if match else ""
@@ -78,22 +78,37 @@ Return only the testbench code inside a ```systemverilog``` code block.
         with tempfile.NamedTemporaryFile(suffix=".sv", mode="w", delete=False) as f:
             f.write(testbench_code)
             tmp_path = f.name
-        with tempfile.NamedTemporaryFile(suffix=".v", mode="w", delete=False) as f:
-            f.write(file_name_to_content.get("mutant_0.v"))
-            tmp_dut_path = f.name
-        # Step 6: Use iverilog to compile and check for syntax errors
-        compile_result = subprocess.run(
-            ["iverilog", "-g2012", tmp_path, tmp_dut_path],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
-        if compile_result.returncode == 0:
-            print("Testbench passed syntax check")
+        # run testbench on all mutants
+        tb_passed = 0
+        for idx in range(0,31):
+            with tempfile.NamedTemporaryFile(suffix=".v", mode="w", delete=False) as f:
+                f.write(file_name_to_content.get(f"mutant_{idx}.v"))
+                tmp_dut_path = f.name
+            # Step 6: Use iverilog to compile and check for syntax errors
+            output_path = "test"
+            compile_result = subprocess.run(
+                ["iverilog", "-o", output_path, tmp_dut_path, tmp_path],
+                # ["iverilog", "-g2012", tmp_path, tmp_dut_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True
+            )
+            if compile_result.returncode == 0:
+                print("Testbench passed syntax check")
+                
+            else:
+                print("Syntax error detected:")
+                print(compile_result.stderr)
+        
+            run = subprocess.run(["vvp", output_path],
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            if run.returncode != 0:
+                print("Simulation Error:\n", run.stderr)
+            else:
+                print("Simulation Output:\n", run.stdout)
+                tb_passed += 1
+        if tb_passed == 30:
             return testbench_code
-        else:
-            print("Syntax error detected:")
-            print(compile_result.stderr)
     # Step 7: Fallback if all attempts fail
     print("Exceeded maximum attempts, returning default testbench")
     return constants.DUMMY_TESTBENCH
